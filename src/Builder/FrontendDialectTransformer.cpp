@@ -593,6 +593,18 @@ private:
     }
   }
 
+  void getNodeOutputs(const onnx::NodeProto &node, std::vector<Value> &outputs) {
+    for (const auto &item : node.output()) {
+      if (item.empty()) {
+        outputs.emplace_back(none());
+      } else {
+        if (const Value *valuePtr = frontend_symbols_.GetByOnnxName(item)) {
+          outputs.push_back(*valuePtr);
+        }
+      }
+    }
+  }
+
   template <typename T>
   void buildOperation(const onnx::NodeProto &node) {
     std::vector<Value> inputs;
@@ -608,6 +620,7 @@ private:
   // If the input is I64, the output is string.
   // If the input is string, the output is I64.
   void ImportCategoryMapper(const onnx::NodeProto &node) {
+    std::cout << "AFOAFO ImportCategoryMapper" << std::endl;
     std::vector<Value> inputs;
     int expectedNumOperands = ONNXCategoryMapperOp::getNumberOfOperands();
     int expectedNumResults = ONNXCategoryMapperOp::getNumberOfResults();
@@ -622,6 +635,29 @@ private:
       outputTypes.emplace_back(builder_.getIntegerType(64));
     }
     buildOutputAndOperation<ONNXCategoryMapperOp>(node, inputs,
+        expectedNumOperands, expectedNumResults, attributes, outputTypes);
+  }
+
+  // The output type of Scan needs special handling
+  // Insert an ? for iteration number dimension 
+  void ImportScan(const onnx::NodeProto &node) {
+    std::cout << "AFOAFO ImportScan" << std::endl;
+    int expectedNumOperands = ONNXScanOp::getNumberOfOperands();
+    int expectedNumResults = ONNXScanOp::getNumberOfResults();
+    std::vector<Value> inputs;
+    getNodeOutputs(node, inputs);
+    std::vector<Value> outputs;
+    getNodeOutputs(node, outputs);
+    auto attributes = ImportNodeAttributes(node);
+    std::vector<Type> outputTypes;
+    for (int i = 0; i < outputs.size(); i++) {
+      if ((i == 3) || (i == 4)) {
+        outputTypes.emplace_back(outputs[i].getType().cast<TensorType>());
+      } else {
+        outputTypes.emplace_back(outputs[i].getType().cast<TensorType>());
+      }
+    }
+    buildOutputAndOperation<ONNXScanOp>(node, inputs,
         expectedNumOperands, expectedNumResults, attributes, outputTypes);
   }
 
